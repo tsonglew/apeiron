@@ -199,7 +199,12 @@ const { title = '交互演示：真实 harness 核心' } = Astro.props
     border-radius: 12px;
     padding: 1.25rem;
     margin: 1rem 0;
-    background: color-mix(in srgb, var(--un-uno-color-60, #fafafa) 40%, transparent);
+    background: #f4f4f5;
+    color: #18181b;
+  }
+  :global(html.dark) .apeiron-demo {
+    background: #16161a;
+    color: #e5e5e7;
   }
   .demo-head {
     display: flex;
@@ -243,8 +248,14 @@ const { title = '交互演示：真实 harness 核心' } = Astro.props
     padding: 0.6rem 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.4));
+    background: #ffffff;
+    color: #18181b;
     font: inherit;
     resize: vertical;
+  }
+  :global(html.dark) #demo-input {
+    background: #1f1f24;
+    color: #e5e5e7;
   }
   .demo-actions {
     display: flex;
@@ -255,8 +266,13 @@ const { title = '交互演示：真实 harness 核心' } = Astro.props
     padding: 0.45rem 0.9rem;
     border-radius: 8px;
     border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.4));
-    background: var(--un-uno-color-50, #fff);
+    background: #ffffff;
+    color: #18181b;
     cursor: pointer;
+  }
+  :global(html.dark) .demo-actions button {
+    background: #1f1f24;
+    color: #e5e5e7;
   }
   .demo-actions button:hover {
     filter: brightness(0.97);
@@ -273,7 +289,12 @@ const { title = '交互演示：真实 harness 核心' } = Astro.props
     border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.25));
     border-radius: 10px;
     padding: 0.75rem 0.85rem;
-    background: var(--un-uno-color-50, #fff);
+    background: #ffffff;
+    color: #18181b;
+  }
+  :global(html.dark) .demo-card {
+    background: #1f1f24;
+    color: #e5e5e7;
   }
   .demo-card h3 {
     margin: 0 0 0.5rem;
@@ -313,11 +334,16 @@ const { title = '交互演示：真实 harness 核心' } = Astro.props
     font-size: 0.85rem;
   }
   .demo-raw pre {
-    background: var(--un-uno-color-60, #f4f4f4);
+    background: #f4f4f5;
+    color: #18181b;
     border-radius: 8px;
     padding: 0.6rem 0.75rem;
     overflow: auto;
     max-height: 18rem;
     font-size: 0.8rem;
+  }
+  :global(html.dark) .demo-raw pre {
+    background: #1f1f24;
+    color: #e5e5e7;
   }
 </style>
