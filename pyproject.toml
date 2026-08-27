@@ -1,0 +1,20 @@
+[project]
+name = "apeiron"
+version = "0.1.0"
+description = "面向有状态智能体的 agent harness：事件溯源会话 + 可插拔分布式状态存储"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/apeiron"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
