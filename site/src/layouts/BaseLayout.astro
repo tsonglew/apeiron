@@ -1,0 +1,32 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "" } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · apeiron 构建手记</title>
+    <meta name="description" content={description} />
+    <link rel="stylesheet" href={base + "global.css"} />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href={base}><b>apeiron</b> 构建手记</a>
+      <span class="subtitle">面向有状态智能体的 agent harness —— 决策日志</span>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <p>与代码仓库同步维护 · <a href="https://github.com/tsonglew/apeiron">GitHub</a></p>
+    </footer>
+  </body>
+</html>

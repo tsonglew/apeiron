@@ -1,0 +1,31 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+const chapters = (await getCollection("book"))
+  .filter((c) => c.data.order > 0)
+  .sort((a, b) => a.data.order - b.data.order);
+const base = import.meta.env.BASE_URL;
+---
+
+<BaseLayout title="目录" description="apeiron 构建手记——面向有状态智能体（含分布式状态存储）的 agent harness 从零到一的决策日志">
+  <h1 class="mega">apeiron 构建手记</h1>
+  <p class="lede">
+    <b>apeiron</b> —— 面向有状态智能体（含分布式状态存储）的 agent harness。
+    本书是它从零到一的<b>决策日志</b>：为什么做、参考了什么、留下什么、删掉什么、踩了什么坑。
+  </p>
+  <p class="status">📌 最新进度：2026-08-26 · M0 完成（单进程骨架，15 tests green）</p>
+  <ol class="toc">
+    {
+      chapters.map((ch) => (
+        <li>
+          <a href={base + "book/" + ch.id + "/"}>
+            <span class="toc-num">{String(ch.data.order).padStart(2, "0")}</span>
+            <span class="toc-title">{ch.data.title}</span>
+            {ch.data.description && <span class="toc-desc">{ch.data.description}</span>}
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</BaseLayout>
