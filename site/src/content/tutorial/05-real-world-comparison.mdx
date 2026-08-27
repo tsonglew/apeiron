@@ -1,0 +1,59 @@
+---
+title: 第 5 章 · 真实系统对照：三家的机制与我们的取舍
+description: dsh/pi/codex 各贡献了什么；哪些学、哪些明确不学
+publishDate: 2026-08-27
+order: 5
+---
+
+# 第 5 章 · 真实系统对照：三家的机制与我们的取舍
+
+> 素材来自 2026-08-27 三个仓库的一手源码深挖（浅克隆 + 实机包交叉验证），
+> 详细对照在[《构建手记》02 章](/apeiron/docs/02-reference-designs)。
+
+## 5.1 三方对照表（源码级）
+
+| 维度 | DeepSeek Harness | pi | Codex |
+| --- | --- | --- | --- |
+| 循环 | turn/step 两级 + 瀑布式 `agent/pre-step` | lane/op + RunPhase 状态机 | `turn.rs::run_turn` |
+| 状态 | `SessionEventMap` 事件日志 + `deriveMessages()` | 写一次 entries + registers + ledger | rollout JSONL 历史 + SQLite 投影表 |
+| 持久化 | JSONL artifact（zstd 可选） | JSONL v4 / SQLite（writer_lease） | canonical=文件，查询=SQLite |
+| 压缩 | compaction seam（surface 替换、配对保留） | 自包含 checkpoint entry | contextCompaction 压缩态落盘 |
+| 控制面 | fail-closed 审批 + 权限预设 | steer/followUp/nextRun 三态队列 | **双向 JSON-RPC**（approval 是 server→client 请求） |
+| 沙箱 | 三档 + enforcement full/partial | 无内建（外部容器化） | 三档 + permissions.toml + execpolicy |
+| 插件 | Cordis（DI+事件+可逆效应） | preset 插件（非核心） | plugins/hooks/mcp_servers |
+| 评测 | headless（四指标从日志推导） | evals 包 | mock 上游的集成测试 |
+
+## 5.2 我们吸收了什么（按层）
+
+- **循环与事件** ← dsh：turn/step 两级生命周期、瀑布式 pre-step 钩子（不改 loop 也能改写输入）、"模型可见即已记录"不变量；
+- **状态与持久化** ← pi + codex：写一次 + 投影分离（canonical 历史与可查询视图分开，写路径极简）；pi 的"持久化程序计数器"（`op.state` 整体覆写）留给 M1 compaction；
+- **协议与控制面** ← codex：Thread/Turn/Item 原语化、双向控制面（审批走 server→client 请求）；
+- **执行安全** ← codex + dsh：三档沙箱（read-only / workspace-write / danger-full-access）+ allow/ask/deny 权限表——pi 没有内建权限系统是它自己的教训；
+- **评测** ← dsh + codex：headless + trace 落盘；M1 起用 mock provider 的集成测试（codex 的 `TestCodexBuilder` 范式）。
+
+## 5.3 明确不学的
+
+- **Cordis 声明式 DI**（`cordis.patch.yml` / `isolate` / `!!js` 表达式 / 事件 `@mode` 契约）——
+  meta 成本远大于收益；Zig 侧用注册表 + service key 的"轻插件槽"（M1 entry points 的对应物）；
+- **整个前端 UI 层 / Typert 装饰器 RPC / WS 双流 / trust-fence**——没有浏览器 UI 就用 stdio JSON-RPC；
+- **119 个 crate 的 Bazel 双轨**——一个 zig/src 目录就够了；
+- **对 /responses API 与 ChatGPT 认证的深度绑定**——provider 必须是插件槽；
+- **pi 的"Harness 耐久层未建成"**——`HarnessNotImplemented` 是真实的坑：facade 移植不算完成，在我们这里是 M1 验收的硬指标。
+
+## 5.4 一句话总结
+
+> 三家语言、风格完全不同，但状态模型收敛到了同一个形状：
+> **不可变追加日志（树）+ 可重建投影；canonical 历史与查询视图分离**。
+> 我们不需要发明新模型——照抄这个共识，然后去补他们都没做透的两件事：
+> **存储按分布式语义替换** 与 **语义可复现（trace 回放）**。
+
+## 验收
+
+- [ ] 说清 pi 的"无权限系统"为什么是错误设计而非特性缺少
+- [ ] 从对照表挑一列（如"压缩"），说说我们 M1 会怎么做（提示：compaction 作为可选 seam）
+- [ ] 读完这一章，你自己会怎么设计一个 harness？写下三个和本教程不同的取舍，并说明理由
+
+---
+
+**教程完。** 下一步：去 `zig/src` 读真实代码、跑 `zig build test`，
+然后到 [交互演示](/apeiron/demo) 把每一章的机制亲手点一遍。

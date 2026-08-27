@@ -3,7 +3,9 @@
 > 从基础到复杂功能。每个里程碑以「可验收」结束。
 > 为什么这么排、每步的取舍见 [book/06-roadmap-logic.md](book/06-roadmap-logic.md)。
 
-现状：**M0 已完成**（2026-08-26，15 tests green）
+现状：**M0 已完成**（2026-08-26，Python 参照实现，15 tests green）
+**2026-08-27：核心迁移至 Zig 并完成 M0-Zig**（八模块齐，21 tests green，见 [book/04](book/04-stack-decisions.md)）；
+下文中「M0 已完成」指语义规格已定，Zig 里程碑以 `zig test` 为准。
 
 ---
 

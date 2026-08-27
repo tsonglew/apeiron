@@ -1,0 +1,82 @@
+---
+title: 第 2 章 · 最小闭环：几百行跑通工具回路
+description: messages -> LLM -> 工具执行 -> 回喂；无状态 run_turn 怎么写、事件边界在哪
+publishDate: 2026-08-27
+order: 2
+---
+
+import DemoRunner from '@/components/DemoRunner.astro'
+
+# 第 2 章 · 最小闭环：几百行跑通工具回路
+
+> 对应真实代码：[`zig/src/loop.zig`](/apeiron/docs)、[`tools.zig`](/apeiron/docs)。
+> 本章结束你会拥有一个**可重放**的循环——它不持有任何状态。
+
+## 2.1 循环的骨架
+
+先把"一次 turn"画出来：
+
+```text
+turn/start
+  claim 输入
+  -> LLM 响应
+     -> 有 tool_calls?  执行每个工具 -> 结果回喂 -> 再问 LLM
+     -> 没有?           记录最终 assistant -> 关 turn
+turn/end
+```
+
+在 Zig 里对应 `runTurn` 的循环体（省略所有权细节后的核心）：
+
+```zig
+var round: usize = 0;
+while (round < max_rounds and !done) : (round += 1) {
+    var response = try provider.complete(alloc, messages_out.items, tools);
+    if (response.tool_calls) |calls| {
+        for (calls) |call| {
+            const call_entry = try log.add(.model, .tool_call, try toolCallPayload(alloc, call), head_id);
+            var data = execute(tools, call);       // 工具执行
+            const result_entry = try log.add(.tool, .tool_result, try toolResultPayload(alloc, call.id, data), call_entry.entry_id);
+            appendMessages(alloc, &messages_out, call, data);  // 回喂
+        }
+        continue;                                  // 再问一次 LLM
+    }
+    const msg_entry = try log.add(.model, .assistant, try objectContent(alloc, response.content orelse ""), head_id);
+    done = true;
+}
+```
+
+三个必须一次做对的细节（都写在真实代码里）：
+
+1. **无状态**：`runTurn` 不持有任何字段——`SessionLog` 是调用方的。换个进程、用同一份日志重放，行为一致；
+2. **工具失败也要落日志**：未知工具、handler 抛错，都变成一条 `{"error": ...}` 的 `tool_result`，循环继续。工具是外界的，失败常态；
+3. **消息是回喂的唯一通道**：`assistant(tool_calls)` + `tool(result)` 两条消息进上下文，模型才能看到执行结果。
+
+## 2.2 边界 => 事件
+
+"安全边界"是这个循环真正值钱的东西：一次模型请求、一次工具执行，都是可观测的边界。
+所以 `runTurn` 通过 `on_event` 回调广播五类事件：
+
+```text
+turn_start -> tool_call -> tool_result -> message_end -> turn_end
+```
+
+**演示就是这五类事件**：下面的按钮会真实调用上面那段循环的 WASM 编译版。
+
+<DemoRunner />
+
+试试换一条消息（比如"你好，apeiron"），观察事件流；点开"原始结果 JSON"，
+里面 `entries` 的 `parent_id` 链就是 `user -> tool_call -> tool_result -> assistant` 的树。
+
+## 2.3 它为什么能评测
+
+同样的代码，换个 provider（脚本 → OpenAI 兼容端点），trace 就变了一条。
+"评测"在 M0 不神秘：`runHeadless` = 建会话 + 跑一轮 + 落 JSONL。
+之后换模型重放同一条 trace 对比行为，靠的是 trace 而非玄学。
+
+## 验收
+
+- [ ] 能在演示页解释：`turn_end count=4` 的 4 是哪 4 条 entry
+- [ ] 说出工具失败时日志里多的是什么字段（`error` + 原 tool_call_id）
+- [ ] 把输入改成空字符串会发生什么（不会崩——试试）
+
+下一章给循环装上状态：不可变日志 + `(session_id, seq)` CAS。

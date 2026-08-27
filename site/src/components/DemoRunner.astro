@@ -1,0 +1,323 @@
+---
+// 可交互演示组件：浏览器里真实运行 apeiron 的 WASM 核心（演示即真相）。
+// 不依赖任何前端框架：纯 DOM + 一行 client script，加载 public/apeiron-demo.wasm。
+interface Props {
+  title?: string
+}
+const { title = '交互演示：真实 harness 核心' } = Astro.props
+---
+
+<section class="apeiron-demo" aria-label={title}>
+  <div class="demo-head">
+    <div>
+      <h2 class="demo-title">{title}</h2>
+      <p class="demo-sub">
+        下面的“▶ 运行”会调用编译自 Zig 的 WASM 核心，真实执行：追加 user entry →
+        LLM（脚本化 provider）→ echo 工具 → 回喂 → assistant entry，事件流与日志来自真身。
+      </p>
+    </div>
+    <span id="wasm-status" class="demo-status">…加载 wasm</span>
+  </div>
+
+  <div class="demo-controls">
+    <textarea id="demo-input" rows="2" placeholder="输入消息…">你好，apeiron</textarea>
+    <div class="demo-actions">
+      <button id="demo-run" type="button">▶ 运行一个 turn</button>
+      <button id="demo-resume" type="button">↻ 演示恢复（resume）</button>
+      <button id="demo-reset" type="button" class="ghost">重置</button>
+    </div>
+  </div>
+
+  <div class="demo-grid">
+    <div class="demo-card">
+      <h3>事件流（每次模型请求/工具执行的边界）</h3>
+      <ol id="demo-events" class="demo-list">
+        <li class="demo-empty">尚未运行</li>
+      </ol>
+    </div>
+    <div class="demo-card">
+      <h3>会话日志（entries，seq 单调递增 + parent 链）</h3>
+      <ol id="demo-entries" class="demo-list">
+        <li class="demo-empty">尚未运行</li>
+      </ol>
+    </div>
+    <div class="demo-card">
+      <h3>消息（模型视角：messages 流）</h3>
+      <ol id="demo-messages" class="demo-list">
+        <li class="demo-empty">尚未运行</li>
+      </ol>
+    </div>
+  </div>
+
+  <details class="demo-raw">
+    <summary>原始结果 JSON（trace 的实时形态）</summary>
+    <pre id="demo-raw">—</pre>
+  </details>
+</section>
+
+<script>
+  // 注意：客户端脚本里 import.meta.env.BASE_URL 可能无尾斜杠（如 "/apeiron"），需规范化
+  const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
+  const $ = (id) => document.getElementById(id)
+  let ex = null // wasm exports
+
+  function setStatus(text, ok) {
+    const el = $('wasm-status')
+    el.textContent = text
+    el.dataset.ok = ok ? '1' : '0'
+  }
+
+  async function loadWasm() {
+    try {
+      const res = await fetch(`${base}/apeiron-demo.wasm`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const bytes = await res.arrayBuffer()
+      const { instance } = await WebAssembly.instantiate(bytes, {})
+      ex = instance.exports
+      ex.demo_init()
+      setStatus('wasm 就绪（64KB 级）', true)
+    } catch (err) {
+      setStatus(`加载失败：${err.message}`, false)
+      console.error(err)
+    }
+  }
+
+  function writeInput(text) {
+    const enc = new TextEncoder()
+    const bytes = enc.encode(text)
+    const ptr = ex.demo_input_ptr()
+    new Uint8Array(ex.memory.buffer, ptr, bytes.length).set(bytes)
+    ex.demo_set_input(bytes.length)
+  }
+
+  function readResult() {
+    const len = ex.demo_result_len()
+    const ptr = ex.demo_result_ptr()
+    return JSON.parse(new TextDecoder().decode(new Uint8Array(ex.memory.buffer, ptr, len)))
+  }
+
+  function esc(s) {
+    const div = document.createElement('div')
+    div.textContent = s ?? ''
+    return div.innerHTML
+  }
+
+  function renderEvents(list) {
+    const ol = $('demo-events')
+    ol.innerHTML = ''
+    for (const ev of list) {
+      const li = document.createElement('li')
+      li.innerHTML = `<span class="mono">${ev.seq}</span> <b>${esc(ev.event)}</b>${ev.count != null ? ` <span class="dim">count=${ev.count}</span>` : ''}`
+      ol.appendChild(li)
+    }
+  }
+
+  function renderEntries(list) {
+    const ol = $('demo-entries')
+    ol.innerHTML = ''
+    for (const e of list) {
+      const li = document.createElement('li')
+      const parent = e.parent_id ? `<span class="dim mono">← ${e.parent_id.slice(0, 8)}…</span>` : '<span class="dim">← 根</span>'
+      const detail =
+        e.kind === 'user' || e.kind === 'assistant'
+          ? esc(e.payload.content ?? '')
+          : e.kind === 'tool_call'
+            ? `${esc(e.payload.name)}(${esc(JSON.stringify(e.payload.args ?? {}))})`
+            : esc(JSON.stringify(e.payload))
+      li.innerHTML = `<span class="mono">${e.seq}</span> <b>${esc(e.kind)}</b> <span class="dim mono">${esc(e.author)}</span> ${parent} <code>${detail}</code>`
+      ol.appendChild(li)
+    }
+  }
+
+  function renderMessages(list) {
+    const ol = $('demo-messages')
+    ol.innerHTML = ''
+    for (const m of list) {
+      const li = document.createElement('li')
+      const role = esc(m.role)
+      const content = esc(m.content ?? '')
+      const tool = m.tool_calls?.map((c) => `${esc(c.name)}(${esc(c.argsText ?? JSON.stringify(c.args ?? {}))})`).join(', ') ?? ''
+      li.innerHTML = `<span class="msg-role">${role}</span> ${content}${tool ? ` <code>${tool}</code>` : ''}`
+      ol.appendChild(li)
+    }
+  }
+
+  function renderRaw(result) {
+    $('demo-raw').textContent = JSON.stringify(result, null, 2)
+  }
+
+  function runTurn() {
+    if (!ex) return
+    const text = $('demo-input').value
+    if (!text.trim()) return
+    writeInput(text)
+    const code = ex.demo_prompt()
+    if (code !== 0) {
+      $('demo-raw').textContent = `demo_prompt 返回 ${code}（内存不足或状态未初始化）`
+      return
+    }
+    const result = readResult()
+    renderEvents(result.events)
+    renderEntries(result.entries)
+    renderMessages(result.messages)
+    renderRaw(result)
+  }
+
+  function resumeDemo() {
+    if (!ex) return
+    const code = ex.demo_resume()
+    if (code !== 0) {
+      $('demo-raw').textContent = `demo_resume 返回 ${code}（请先运行一个 turn）`
+      return
+    }
+    const result = readResult()
+    renderEntries(result.entries)
+    renderMessages(result.messages)
+    // 恢复演示会重建另一棵视图：事件流置空提示
+    $('demo-events').innerHTML = '<li class="demo-empty">resume 不产生事件（重放日志重建）</li>'
+    renderRaw(result)
+  }
+
+  function resetDemo() {
+    if (!ex) return
+    ex.demo_init()
+    for (const id of ['demo-events', 'demo-entries', 'demo-messages']) {
+      $(id).innerHTML = '<li class="demo-empty">尚未运行</li>'
+    }
+    $('demo-raw').textContent = '—'
+  }
+
+  $('demo-run')?.addEventListener('click', runTurn)
+  $('demo-resume')?.addEventListener('click', resumeDemo)
+  $('demo-reset')?.addEventListener('click', resetDemo)
+  loadWasm()
+</script>
+
+<style>
+  .apeiron-demo {
+    border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.3));
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+    background: color-mix(in srgb, var(--un-uno-color-60, #fafafa) 40%, transparent);
+  }
+  .demo-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+  }
+  .demo-title {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+  .demo-sub {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    opacity: 0.75;
+  }
+  .demo-status {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.15);
+  }
+  .demo-status[data-ok='1'] {
+    background: rgba(34, 160, 90, 0.15);
+    color: #1c7a44;
+  }
+  .demo-status[data-ok='0'] {
+    background: rgba(200, 60, 60, 0.15);
+    color: #b03030;
+  }
+  .demo-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+  #demo-input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.4));
+    font: inherit;
+    resize: vertical;
+  }
+  .demo-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .demo-actions button {
+    font: inherit;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.4));
+    background: var(--un-uno-color-50, #fff);
+    cursor: pointer;
+  }
+  .demo-actions button:hover {
+    filter: brightness(0.97);
+  }
+  .demo-actions .ghost {
+    opacity: 0.7;
+  }
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.85rem;
+  }
+  .demo-card {
+    border: 1px solid var(--un-uno-color-40, rgba(127, 127, 127, 0.25));
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+    background: var(--un-uno-color-50, #fff);
+  }
+  .demo-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+  }
+  .demo-list {
+    margin: 0;
+    padding-left: 1.3rem;
+    max-height: 15rem;
+    overflow: auto;
+    font-size: 0.88rem;
+  }
+  .demo-list li {
+    margin: 0.2rem 0;
+    line-height: 1.45;
+  }
+  .demo-empty {
+    opacity: 0.5;
+    list-style: none;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+  }
+  .dim {
+    opacity: 0.6;
+  }
+  .msg-role {
+    font-weight: 600;
+  }
+  code {
+    font-size: 0.85em;
+    word-break: break-all;
+  }
+  .demo-raw {
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+  }
+  .demo-raw pre {
+    background: var(--un-uno-color-60, #f4f4f4);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    overflow: auto;
+    max-height: 18rem;
+    font-size: 0.8rem;
+  }
+</style>

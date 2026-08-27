@@ -14,7 +14,7 @@
     "format": "prettier --write  '**/*.{js,jsx,ts,tsx,md,mdx,astro}'",
     "lint": "eslint --fix 'src/**/*.{js,ts,jsx,tsx,astro}'",
     "yijiansilian": "bun lint && bun sync && bun check && bun format",
-    "prebuild": "node scripts/sync-book.mjs",
+    "prebuild": "node scripts/sync-book.mjs && node scripts/sync-wasm.mjs",
     "clean": "rm -rf .astro .vercel dist",
     "cache:avatars": "tsx preset/scripts/cacheAvatars.ts"
   },

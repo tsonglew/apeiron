@@ -1,0 +1,65 @@
+---
+title: 第 1 章 · 心智模型：Agent = Model + Harness
+description: 模型负责「想」，harness 负责「执行」；为什么状态是核心、分布式状态是空白
+publishDate: 2026-08-27
+order: 1
+---
+
+# 第 1 章 · 心智模型：Agent = Model + Harness
+
+> 本章不写代码。目标是先把"我们要造的到底是什么"想清楚——后面四章的一切取舍都从这里长出来。
+
+## 1.1 一句话
+
+**Agent = Model + Harness。** 模型负责"想"（推理、规划、工具调用决策），
+harness 负责"执行"（文件读写、shell、工具调用、会话管理、权限、评测）。
+同样一个模型，换一个 harness，成绩和行为都会变——benchmark 排名第一和"能不能干活"是两件事。
+
+## 1.2 workflow 还是 agent？
+
+Anthropic《Building Effective Agents》给的框架仍然是最好的起点：
+
+- **workflow**：预先编排的路径（chain / parallel / routing / orchestrator / evaluator-optimizer）；
+- **agent**：模型自己决定下一步，循环"思考 → 行动 → 观察"，直到任务完成。
+
+harness 要服务的主要是后者——所以它的核心是一个**可重放的循环**，
+而不是一叠编排 API（那是在循环之上再搭的东西，不该在核心）。
+
+## 1.3 状态：被低估的核心
+
+直觉上会以为 harness = "模型调用循环 + 工具注册表"。但真正让 demo 变成产品的，是**会话状态**：
+
+1. **恢复**：进程崩溃 / 断连 / 长任务被杀——状态在，就能续跑；
+2. **分叉与回滚**：评测、调试"上次换个思路会怎样"——需要可回放的历史；
+3. **子代理**：子任务挂到父任务上——需要树结构；
+4. **实时介入**：steer（插话）、abort、审批——需要知道"会话写到哪了"。
+
+而当你要"状态可用"的工程保证（多机、多进程、崩溃恢复），就得到本题的题眼：
+**分布式状态存储**。
+
+## 1.4 参考坐标系（2026-08 时点）
+
+| 项目 | 状态模型 | 独有的强项 | 空白 |
+| --- | --- | --- | --- |
+| pi（earendil-works） | 写一次 entries + registers | 会话树 / lane / 持久化程序计数器 | 单进程单写者；无权限系统 |
+| DeepSeek Harness | append-only session log | "模型可见即已记录"、一切皆插件 | 核心未稳；分布式无落地 |
+| Codex Harness | rollout JSONL + SQLite 投影 | app-server 协议（Thread/Turn/Item） | 深度绑定 OpenAI API |
+
+三家各有拼图的一块；**分布式状态这块拼图是空的**——
+apeiron 的定位就是补它，同时吸取三家的优点。三方对照的详细表见
+[《构建手记》02 章](/apeiron/docs/02-reference-designs)。
+
+## 1.5 我们锁定的五条原则（不要逐条发明，这是结论）
+
+1. **会话是事件日志，AgentState 只是投影**：不可变追加序列是唯一源真；
+2. **分层边界 = 状态所有权**：loop 永远无状态（可单测、可重放）；
+3. **单写者**：每会话一个写者，`(session_id, seq)` 即乐观并发控制——不做 CRDT；
+4. **协议先行**：所有 host 与外部 agent 只走 JSON-RPC；
+5. **trace-first**：model-visible means logged——审计、评测、回放共用一份 JSONL。
+
+## 验收
+
+- [ ] 能说出"为什么 loop 必须无状态"（提示：换进程重放的正确性前提）
+- [ ] 能说出三家里哪一个给了我们"协议原语"参考（答案见下文第 4 章）
+
+下一章动手：用几百行代码跑通第一个工具回路。

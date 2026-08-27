@@ -13,20 +13,27 @@
 - **插件化（M1）**：模型 / 工具 / 沙箱 / 存储 / loop 皆可替换，以 entry points 注册。
 - **trace-first**：model-visible means logged；headless + 四指标（turns/token/耗时/成本）用于评测。
 
-## M0 现状
+## 现状（2026-08-27 更新）
+
+> **技术栈变更**：核心实现迁移至 **Zig**（M0 起重写，见 [book/04](book/04-stack-decisions.md)）。
+> 下方 `src/apeiron/` Python 版 M0 保留为**设计规格与测试语义参照**，不再演进；
+> 新核心在 [`zig/`](zig/)（`zig test` 验证，**21/21 全绿**，含 WASM 交叉编译验证）。
+> 教程交互演示 = Zig 编译 WASM 跑真实核心。
 
 ```
-crates 结构（包 = src/apeiron/）
-  entries.py   Entry / EntryKind / Author，不可变记录模型
-  log.py       SessionLog：进程内追加、查询、快照
-  store.py     SessionStore 接口 + MemoryStore + SqliteStore（(session_id,seq) 即 CAS）
-  loop.py      无状态 run_turn：LLM -> 工具 -> 回喂；事件流
-  tools.py     内建工具（echo 占位）与权限分级
-  harness.py   phase 状态机、hooks、turn 级 save point、resume
-  control.py   控制通道 Protocol + 本地 asyncio.Queue 实现
-  rpc.py       JSON-RPC 2.0 over stdio：thread/start, thread/add, turn/run, thread/read
-  eval.py      TraceWriter + run_headless
+zig/src/（当前实现，M0 八模块齐）
+  entries   Entry / EntryKind / Author，不可变记录模型（uuid4 hex id）
+  log       SessionLog：进程内追加、查询、快照、restore
+  store     SessionStore 接口（vtable）+ MemoryStore（(session_id,seq) 即 CAS）
+  loop      无状态 run_turn：LLM -> 工具 -> 回喂；事件流；messagesFromLog
+  tools     内建工具（echo 占位）与权限分级
+  harness   phase 状态机、hooks、turn 级 save point、resumeSession、abort
+  control   控制通道 Protocol + 本地 FIFO 队列（steer/abort/approve 用）
+  rpc       JSON-RPC 2.0 over stdio：thread/start, thread/add, turn/run, thread/read
+  eval      TraceWriter（JSONL 落盘）+ runHeadless
 ```
+
+Python 参照实现（`src/apeiron/`，设计规格，不再演进）：entries / log / store / loop / tools / harness / control / rpc / eval 一一对应。
 
 ## 文档
 
@@ -38,6 +45,10 @@ crates 结构（包 = src/apeiron/）
 ## 使用
 
 ```
+# Zig 核心（当前实现）
+zig build test
+
+# Python 参照实现（语义规格）
 uv run pytest -q
 ```
 

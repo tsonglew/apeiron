@@ -1,0 +1,48 @@
+---
+import { getBlogCollection, sortMDByDate } from 'astro-pure/server'
+import { Button } from 'astro-pure/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+
+const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
+const meta = {
+  title: '从零构建 agent harness',
+  description: '五章教程：从几百行工具循环到可恢复的会话协议，每一步都可运行、可演示'
+}
+
+const chapters = sortMDByDate(await getBlogCollection('tutorial'))
+---
+
+<PageLayout {meta}>
+  <Button title='Back' href={`${base}/docs`} variant='back' />
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-3 text-3xl font-medium'>从零构建 agent harness</h1>
+      <p class='mb-6'>
+        这条教程跟着 <code>zig/src/</code> 的真实代码演进：每一章从一个"最小能跑"的形态出发，
+        到下一章加上一块关键机制。每章末尾的<b>交互演示</b>不是模拟——
+        它加载的是本页编译自 Zig 的 WASM 核心（<code>apeiron-demo.wasm</code>），
+        你点击的每一步都在真实执行事件溯源会话。
+      </p>
+    </div>
+
+    <div id='content' class='animate'>
+      <ol class='mb-8 list-decimal pl-6'>
+        {
+          chapters.map((c) => (
+            <li class='my-2'>
+              <a href={`${base}/tutorial/${c.id}`} class='font-medium'>
+                {c.data.title}
+              </a>
+              <p class='text-sm opacity-75'>{c.data.description}</p>
+            </li>
+          ))
+        }
+      </ol>
+
+      <div class='rounded-lg p-4 text-sm' style='background: rgba(127,127,127,0.08)'>
+        <b>配套</b>：决策日志见 <a href={`${base}/docs`}>《apeiron 构建手记》</a>——
+        教程讲"怎么做"，书讲"为什么"。两条线一起读，决策过程是透明的。
+      </div>
+    </div>
+  </main>
+</PageLayout>

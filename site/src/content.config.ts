@@ -57,4 +57,19 @@ const docs = defineCollection({
     })
 })
 
-export const collections = { blog, docs }
+// Define tutorial collection（from-scratch 教程：MDX 可嵌入 DemoRunner 交互演示）
+const tutorial = defineCollection({
+  loader: glob({ base: './src/content/tutorial', pattern: '**/*.{md,mdx}' }),
+  schema: () =>
+    z.object({
+      title: z.string().max(60),
+      description: z.string().max(160),
+      publishDate: z.coerce.date().optional(),
+      updatedDate: z.coerce.date().optional(),
+      tags: z.array(z.string()).default([]).transform(removeDupsAndLowerCase),
+      draft: z.boolean().default(false),
+      order: z.number().default(999)
+    })
+})
+
+export const collections = { blog, docs, tutorial }

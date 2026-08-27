@@ -1,0 +1,62 @@
+---
+// 交互演示页：浏览器里真实运行 apeiron harness 核心（Zig → WASM）。
+// 教程各章节通过 <DemoRunner /> 组件嵌入同一份核心。
+import { Button } from 'astro-pure/user'
+import PageLayout from '@/layouts/BaseLayout.astro'
+import DemoRunner from '@/components/DemoRunner.astro'
+
+const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
+
+const meta = {
+  title: '可交互演示',
+  description: '浏览器里真实运行 apeiron harness 核心：事件溯源、工具回路、崩溃恢复'
+}
+---
+
+<PageLayout {meta}>
+  <Button title='Back' href={`${base}/docs`} variant='back' />
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-3 text-3xl font-medium'>可交互演示</h1>
+      <p class='mb-6'>
+        这不是动画模拟——页面里跑的是 Zig 编译出的 WASM 真身：你点击“▶ 运行一个 turn”，
+        背后真实执行 <code>log.add(user)</code> → <code>runTurn</code> → LLM（脚本化 provider）
+        → <code>echo</code> 工具执行 → 回喂 → <code>log.add(assistant)</code>，并用
+        <code> (session_id, seq)</code> 主键把条目写进内存存储；“↻ 演示恢复”则是另一个会话
+        进程从存储重放日志重建消息——也就是崩溃恢复语义。
+      </p>
+    </div>
+
+    <div id='content' class='animate'>
+      <DemoRunner />
+
+      <h2 class='mt-8 text-xl font-medium'>这是什么</h2>
+      <ul class='mt-4 list-disc pl-6'>
+        <li>
+          <b>事件流</b>：turn 生命周期里每个<b>安全边界</b>都有事件（turn_start → tool_call →
+          tool_result → message_end → turn_end），对应 <code>loop.Event</code>；
+        </li>
+        <li>
+          <b>会话日志</b>：entries 是唯一源真——每条有单调 <code>seq</code> 与
+          <code>parent_id</code>（<>user → tool_call → tool_result → assistant</> 的树链）；
+        </li>
+        <li>
+          <b>模块化</b>：store（此处 MemoryStore）可替换——换成 SQLite/Postgres 时；
+          <code>(session_id, seq)</code> 主键即 CAS，接口不变；
+        </li>
+        <li>
+          <b>trace-first</b>：演示页的“原始结果 JSON”就是一分钟版 trace——模型看到的一切都落日志。
+        </li>
+      </ul>
+
+      <h2 class='mt-8 text-xl font-medium'>如何自己跑</h2>
+      <pre class='mt-4 rounded-lg bg-gray-100 p-4 text-sm dark:bg-gray-800'><code>
+# 构建 wasm 演示（生成 zig-out/bin/apeiron-demo.wasm）
+zig build wasm-demo
+
+# Node 冒烟（可选，CI 也用）
+node zig/scripts/demo-smoke.mjs zig/zig-out/bin/apeiron-demo.wasm
+      </code></pre>
+    </div>
+  </main>
+</PageLayout>

@@ -1,0 +1,74 @@
+---
+title: 第 4 章 · 协议先行：JSON-RPC 2.0 骨架
+description: 会话/回合/条目作一等协议原语；host 与外部 agent 只走协议
+publishDate: 2026-08-27
+order: 4
+---
+
+# 第 4 章 · 协议先行：JSON-RPC 2.0 骨架
+
+> 对应真实代码：[`rpc.zig`](/apeiron/docs)、[`control.zig`](/apeiron/docs)。
+> 学 codex app-server 的启示：**协议是框架的命脉**——CLI / TUI / Web / CI 全走一个协议。
+
+## 4.1 为什么先立协议
+
+- 换 UI（CLI → Web → CI）不动核心；
+- 外部 agent（codex / dsh 作为子代理）可以只依赖协议互操作，不依赖实现语言；
+- 评测农场 = 以协议驱动的批量进程。
+
+代价是：协议冻结先于 API 冻结。所以我们 M0 就定了四个方法：
+
+| 方法 | 作用 |
+| --- | --- |
+| `thread/start` | 创建会话，返回 `thread_id` |
+| `thread/add` | 手动追加条目（user / summary / checkpoint 白名单） |
+| `turn/run` | 跑一个 turn（内部走 harness.prompt） |
+| `thread/read` | 按 `since_seq` 读日志（增量 + 幂等） |
+
+## 4.2 一帧请求/响应（真实 wire 格式）
+
+一个 turn 的完整往返：
+
+```jsonc
+// -> 请求
+{"jsonrpc":"2.0","id":1,"method":"thread/start","params":{}}
+// <- 响应
+{"jsonrpc":"2.0","id":1,"result":{"thread_id":"5f3a..."}}
+
+// -> 请求
+{"jsonrpc":"2.0","id":2,"method":"turn/run",
+ "params":{"thread_id":"5f3a...","message":"hi"}}
+// <- 响应（entries 数组 = 本次 turn 新增的不可变事件）
+{"jsonrpc":"2.0","id":2,"result":{
+   "entries":[
+     {"seq":1,"kind":"user","author":"user","payload":{"content":"hi"}},
+     {"seq":2,"kind":"assistant","author":"model","payload":{"content":"hello"}}
+   ]}}
+```
+
+错误码全部对齐 JSON-RPC 2.0 规范：`-32700` 解析错误、`-32601` 方法不存在、
+`-32602` 参数无效、`-32000` 线程不存在。传输：**行分隔 JSON over stdio**
+（每个请求一行，每响应一行）——这就是 `serve` 在做的循环。
+
+## 4.3 控制通道为什么独立
+
+审批 / steer / abort 属于"控制面"，走与主写路径**分离**的通道（`control.zig`）：
+
+- 主路径：`prompt` 中的日志追加（单写者，严格串行）；
+- 控制面：`ControlChannel.send/receive`（本地 FIFO；分布式换 PG LISTEN/NOTIFY）。
+
+为什么分开？控制消息若与写路径共用一把锁，就出现了"审批在等写、写在等审批"的互锁。
+M0 用队列留缝，M2 分布式化时接口不变。
+
+## 4.4 版本化
+
+每个 entry 的 `schema_version` 是协议的一部分——`payload` 演进靠版本兼容，
+旧存档不破坏。规则：**先加版本字段，再动协议**。
+
+## 验收
+
+- [ ] 用 `serve` 跑一个最小会话：`echo '{"jsonrpc":"2.0","id":1,"method":"thread/start"}' | apeiron serve`
+- [ ] 说出 `thread/read` 的 `since_seq` 为什么比"全量读"好（增量、幂等、支持长会话）
+- [ ] 想一个你想加的第五个方法：它该在方法表里还是控制通道里？
+
+下一章：学完三家后的对照与取舍。

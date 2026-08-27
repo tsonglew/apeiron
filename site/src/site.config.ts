@@ -49,7 +49,9 @@ export const theme: ThemeUserConfig = {
   header: {
     menu: [
       // 部署在 GitHub Pages 子路径下，链接字面量须带 base
-      { title: '书稿', link: '/apeiron/docs' }
+      { title: '书稿', link: '/apeiron/docs' },
+      { title: '教程', link: '/apeiron/tutorial' },
+      { title: '演示', link: '/apeiron/demo' }
     ]
   },
 

@@ -27,6 +27,10 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: site/package-lock.json
+      # 交互演示：Zig 编译 WASM（prebuild 的 sync-wasm.mjs 调 zig build wasm-demo）
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
       - run: npm ci
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,47 @@
+---
+import { type CollectionEntry, render } from 'astro:content'
+import { getBlogCollection, sortMDByDate } from 'astro-pure/server'
+import { Button } from 'astro-pure/user'
+import PageLayout from '@/layouts/CommonPage.astro'
+
+export const prerender = true
+
+export async function getStaticPaths() {
+  const chapters = sortMDByDate(await getBlogCollection('tutorial'))
+  return chapters.map((chapter) => ({
+    params: { id: chapter.id },
+    props: { chapter }
+  }))
+}
+
+type Props = {
+  chapter: CollectionEntry<'tutorial'>
+}
+
+const { chapter } = Astro.props
+const { Content, headings } = await render(chapter)
+const { title, description } = chapter.data
+const all = sortMDByDate(await getBlogCollection('tutorial'))
+const idx = all.findIndex((c) => c.id === chapter.id)
+const prev = idx > 0 ? all[idx - 1] : null
+const next = idx < all.length - 1 ? all[idx + 1] : null
+
+const base = import.meta.env.BASE_URL.replace(/\/+$/, '')
+---
+
+<PageLayout meta={{ title, description }} headings={headings}>
+  <main class='mt-6 lg:mt-10'>
+    <Button title='教程目录' href={`${base}tutorial`} variant='back' />
+    <div class='mt-4'>
+      <Content />
+    </div>
+    <nav class='mt-10 flex justify-between gap-4 text-sm'>
+      {prev ? (
+        <a href={`${base}tutorial/${prev.id}`}>← {prev.data.title}</a>
+      ) : (
+        <span />
+      )}
+      {next ? <a href={`${base}tutorial/${next.id}`}>{next.data.title} →</a> : <span />}
+    </nav>
+  </main>
+</PageLayout>
