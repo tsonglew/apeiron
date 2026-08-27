@@ -1,0 +1,37 @@
+---
+import { Button, Icon } from 'astro-pure/user'
+import { cn } from 'astro-pure/utils'
+import PageLayout from '@/layouts/BaseLayout.astro'
+import { integ } from '@/site-config'
+
+import DocsContents from './DocsContents.astro'
+
+const base = import.meta.env.BASE_URL
+const meta = {
+  title: '书稿',
+  description: '《apeiron 构建手记》—— 决策日志目录'
+}
+---
+
+<PageLayout {meta}>
+  <Button title='Back' href={base} variant='back' />
+  <main class='mt-6 lg:mt-10'>
+    <div id='content-header' class='animate'>
+      <h1 class='mb-6 text-3xl font-medium'>apeiron 构建手记</h1>
+    </div>
+
+    <div id='content' class={cn('animate mt-8 max-w-none md:min-w-[45ch]', integ.typography.class)}>
+      <p class='text-muted-foreground'>
+        面向有状态智能体（含分布式状态存储）的 agent harness——从零到一的决策日志：为什么做、参考了什么、留下什么、删掉什么、踩了什么坑。
+      </p>
+      <h2 class='text-xl font-medium'>章节</h2>
+      <DocsContents title={false} />
+
+      <h2 class='text-xl font-medium'>同步更新</h2>
+      <p>
+        书稿与 <a href='https://github.com/tsonglew/apeiron' target='_blank'>代码仓库</a> 并行维护：更新手记即更新
+        本书。订阅 <a href={`${base}docs/rss.xml`} target='_blank'><Icon name='rss' /> RSS</a>。
+      </p>
+    </div>
+  </main>
+</PageLayout>

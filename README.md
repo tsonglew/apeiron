@@ -32,7 +32,7 @@ crates 结构（包 = src/apeiron/）
 
 - [ROADMAP.md](ROADMAP.md) —— 里程碑计划（M0 已完成）
 - [book/](book/00-index.md) ——《apeiron 构建手记》：决策日志与实现重点
-  （[Astro + 纯 CSS 站点](site/)，发布到 tsonglew.github.io/apeiron，
+  （[Astro + Pure 主题站点](site/)，发布到 tsonglew.github.io/apeiron，
   push 后由 GitHub Actions 自动构建部署）
 
 ## 使用

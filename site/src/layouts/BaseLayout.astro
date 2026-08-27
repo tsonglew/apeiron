@@ -1,32 +1,91 @@
 ---
+import { Footer, Header, ThemeProvider } from 'astro-pure/components/basic'
+import type { SiteMeta } from 'astro-pure/types'
+import BaseHead from '@/components/BaseHead.astro'
+import config from '@/site-config'
+
+// Import the global.css file here so that it is included on
+// all pages through the use of the <BaseLayout /> component.
+import '@/assets/styles/global.css'
+import '@/assets/styles/app.css'
+
 interface Props {
-  title: string;
-  description?: string;
+  meta: SiteMeta
+  highlightColor?: string
 }
 
-const { title, description = "" } = Astro.props;
-const base = import.meta.env.BASE_URL;
+const {
+  meta: { articleDate, description = config.description, ogImage, title },
+  highlightColor,
+  ...props
+} = Astro.props
 ---
 
-<!doctype html>
-<html lang="zh-CN">
+<html lang={config.locale.lang}>
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · apeiron 构建手记</title>
-    <meta name="description" content={description} />
-    <link rel="stylesheet" href={base + "global.css"} />
+    <BaseHead {articleDate} {description} {ogImage} {title} />
+    <ThemeProvider />
   </head>
-  <body>
-    <header class="site-header">
-      <a class="brand" href={base}><b>apeiron</b> 构建手记</a>
-      <span class="subtitle">面向有状态智能体的 agent harness —— 决策日志</span>
-    </header>
-    <main>
-      <slot />
-    </main>
-    <footer class="site-footer">
-      <p>与代码仓库同步维护 · <a href="https://github.com/tsonglew/apeiron">GitHub</a></p>
-    </footer>
+
+  <body class='flex justify-center bg-background text-foreground' {...props}>
+    {
+      highlightColor && (
+        <div
+          id='highlight-gradient'
+          class='pointer-events-none absolute start-0 top-0 z-0 h-screen w-full opacity-25'
+          style={`background-image:linear-gradient(${highlightColor},transparent)`}
+        />
+      )
+    }
+    <div
+      id='main-container'
+      class='w-full max-w-[70rem] min-h-[100dvh] flex flex-col justify-between'
+    >
+      <Header />
+      <div class='flex-1 w-full'>
+        <slot />
+      </div>
+      <Footer />
+    </div>
+
+    {/* Set highlight color */}
+    <style define:vars={{ highlightColor }}>
+      :global(.highlight) {
+        --highlight-fg: color-mix(
+          in srgb,
+          var(--highlightColor) 40%,
+          hsl(var(--foreground)/var(--un-text-opacity, 1))
+        );
+        color: var(--highlight-fg, hsl(var(--primary) / var(--un-text-opacity))) !important;
+      }
+      :global(.highlight-bg) {
+        background-color: var(
+          --highlightColor,
+          hsl(var(--primary) / var(--un-text-opacity))
+        ) !important;
+      }
+
+      /* Extend safe area for some special screens
+       * https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/env
+       * https://webkit.org/blog/7929/designing-websites-for-iphone-x/
+       */
+      #main-container {
+        padding-top: env(safe-area-inset-top);
+        padding-left: calc(1rem + env(safe-area-inset-left));
+        padding-right: calc(1rem + env(safe-area-inset-right));
+      }
+      @media (min-width: 640px) {
+        #main-container {
+          padding-left: calc(1.75rem + env(safe-area-inset-left));
+          padding-right: calc(1.75rem + env(safe-area-inset-right));
+        }
+      }
+      @media (min-width: 1024px) {
+        #main-container {
+          padding-left: calc(2.5rem + env(safe-area-inset-left));
+          padding-right: calc(2.5rem + env(safe-area-inset-right));
+        }
+      }
+    </style>
   </body>
 </html>
